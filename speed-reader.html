@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reticle — PDF Speed Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0b09;
+    --case:#151610;
+    --case-2:#1b1c15;
+    --panel:#0d0e0a;
+    --amber:#ffb300;
+    --amber-dim:#6b4d0f;
+    --amber-glow: rgba(255,179,0,0.35);
+    --text:#d9d5c4;
+    --text-dim:#6f6d5e;
+    --rule:#2b2c22;
+    --rule-bright:#3a3c2c;
+    --danger:#e0503a;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse at 50% -10%, #1c1d15 0%, var(--bg) 60%);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:32px 20px;
+  }
+
+  .device{
+    width:100%;
+    max-width:720px;
+    background:linear-gradient(180deg, var(--case) 0%, var(--case-2) 100%);
+    border-radius:18px;
+    padding:22px;
+    box-shadow:
+      0 40px 80px -30px rgba(0,0,0,0.7),
+      inset 0 1px 0 rgba(255,255,255,0.04),
+      inset 0 -1px 0 rgba(0,0,0,0.5);
+    position:relative;
+    border:1px solid #050503;
+  }
+
+  .rivet{
+    position:absolute;
+    width:6px; height:6px;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #4a4b3d, #0c0d08 70%);
+    box-shadow:0 1px 0 rgba(255,255,255,0.06);
+  }
+  .rivet.tl{top:12px; left:12px;}
+  .rivet.tr{top:12px; right:12px;}
+  .rivet.bl{bottom:12px; left:12px;}
+  .rivet.br{bottom:12px; right:12px;}
+
+  .nameplate{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:2px 8px 18px;
+  }
+  .nameplate .brand{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .led-dot{
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--amber-dim);
+    box-shadow:none;
+    transition:background .2s ease, box-shadow .2s ease;
+  }
+  .led-dot.on{
+    background:var(--amber);
+    box-shadow:0 0 8px 2px var(--amber-glow);
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ opacity:1; }
+    50%{ opacity:.55; }
+  }
+  .nameplate h1{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    font-weight:700;
+    color:var(--text);
+    margin:0;
+  }
+  .nameplate small{
+    font-family:'JetBrains Mono',monospace;
+    color:var(--text-dim);
+    font-size:10px;
+    letter-spacing:0.08em;
+  }
+
+  /* ---------- Upload slot ---------- */
+  .upload-zone{
+    margin:0 4px 4px;
+    border:2px dashed var(--rule-bright);
+    border-radius:10px;
+    padding:52px 24px;
+    text-align:center;
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 8px),
+      var(--panel);
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .upload-zone:hover, .upload-zone.dragover{
+    border-color:var(--amber-dim);
+  }
+  .upload-zone .slot{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.15em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-bottom:14px;
+  }
+  .upload-zone .slot::before, .upload-zone .slot::after{
+    content:'—';
+    color:var(--rule-bright);
+    margin:0 8px;
+  }
+  .upload-zone p.main{
+    color:var(--text);
+    font-size:15px;
+    margin:0 0 6px;
+    font-weight:500;
+  }
+  .upload-zone p.sub{
+    color:var(--text-dim);
+    font-size:12px;
+    margin:0;
+  }
+  #fileInput{display:none;}
+
+  .status{
+    text-align:center;
+    color:var(--text-dim);
+    font-size:12px;
+    margin-top:12px;
+    font-family:'JetBrains Mono',monospace;
+    min-height:16px;
+  }
+  .status.error{color:var(--danger);}
+
+  /* ---------- Reader ---------- */
+  .reader{display:none;}
+  .reader.active{display:block;}
+
+  .filebar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 8px 10px;
+    font-size:11px;
+    color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace;
+  }
+  .filebar .fname{color:var(--text);}
+  .filebar button{
+    background:none; border:none; color:var(--text-dim);
+    font-size:11px; cursor:pointer;
+    font-family:'JetBrains Mono',monospace;
+    letter-spacing:0.04em;
+  }
+  .filebar button:hover{color:var(--amber);}
+
+  .screen-frame{
+    margin:0 4px;
+    background:var(--panel);
+    border-radius:8px;
+    border:1px solid #000;
+    box-shadow:inset 0 3px 14px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.02);
+    position:relative;
+    overflow:hidden;
+  }
+  .screen-frame::before{
+    content:'';
+    position:absolute; inset:0;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 3px);
+    pointer-events:none;
+  }
+
+  .stage{
+    position:relative;
+    height:200px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .reticle-tick{
+    position:absolute;
+    left:50%;
+    width:1px;
+    background:var(--rule-bright);
+    transform:translateX(-50%);
+  }
+  .reticle-tick.top{top:18px; height:10px;}
+  .reticle-tick.bottom{bottom:18px; height:10px;}
+  .reticle-tick.center{
+    top:0; bottom:0; height:auto;
+    background:linear-gradient(180deg, transparent, var(--amber-dim) 40%, var(--amber-dim) 60%, transparent);
+    opacity:.35;
+    width:1px;
+  }
+
+  .word-line{
+    font-family:'Share Tech Mono',monospace;
+    font-size:42px;
+    display:flex;
+    white-space:pre;
+    line-height:1;
+  }
+  .pre{ width:50%; text-align:right; color:var(--text); }
+  .pivot{
+    color:var(--amber);
+    text-align:center;
+    text-shadow:0 0 12px var(--amber-glow), 0 0 2px var(--amber-glow);
+  }
+  .post{ width:50%; text-align:left; color:var(--text); }
+
+  /* ---------- LED segmented progress ---------- */
+  .progress-wrap{ padding:14px 8px 0; }
+  .progress-track{
+    position:relative;
+    height:10px;
+    border-radius:2px;
+    cursor:pointer;
+    background:repeating-linear-gradient(90deg, var(--rule) 0 5px, var(--panel) 5px 7px);
+    overflow:hidden;
+  }
+  .progress-fill{
+    position:absolute; top:0; left:0; height:100%;
+    width:0%;
+    background:repeating-linear-gradient(90deg, var(--amber) 0 5px, var(--panel) 5px 7px);
+    box-shadow:0 0 6px var(--amber-glow);
+  }
+  .progress-meta{
+    display:flex;
+    justify-content:space-between;
+    font-size:10px;
+    color:var(--text-dim);
+    margin-top:8px;
+    font-family:'JetBrains Mono',monospace;
+    letter-spacing:0.03em;
+  }
+
+  /* ---------- Controls ---------- */
+  .controls{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:18px 8px 8px;
+  }
+  .btn{
+    background:var(--case-2);
+    border:1px solid var(--rule-bright);
+    color:var(--text);
+    width:36px; height:36px;
+    border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    font-size:12px;
+    transition:border-color .15s ease, color .15s ease;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.4);
+  }
+  .btn:hover{border-color:var(--amber-dim); color:var(--amber);}
+  .btn:active{transform:translateY(1px);}
+  .btn.play{
+    width:44px; height:44px;
+    background:linear-gradient(180deg,#ffc23d,var(--amber));
+    color:#1a1204;
+    border:none;
+    font-size:14px;
+    box-shadow:0 0 14px var(--amber-glow), inset 0 1px 0 rgba(255,255,255,0.4);
+  }
+  .btn.play:hover{ color:#1a1204; filter:brightness(1.05); }
+
+  .wpm-block{
+    flex:1;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .wpm-block label{
+    font-size:10px;
+    color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace;
+    letter-spacing:0.1em;
+    white-space:nowrap;
+  }
+  .wpm-value{
+    font-family:'JetBrains Mono',monospace;
+    font-size:15px;
+    font-weight:700;
+    color:var(--amber);
+    width:74px;
+    text-align:right;
+    text-shadow:0 0 8px var(--amber-glow);
+  }
+  input[type=range]{
+    flex:1;
+    -webkit-appearance:none;
+    height:3px;
+    background:var(--rule-bright);
+    border-radius:2px;
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:14px; height:14px;
+    border-radius:3px;
+    background:var(--amber);
+    cursor:pointer;
+    border:2px solid #1a1204;
+    box-shadow:0 0 6px var(--amber-glow);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px; height:14px;
+    border-radius:3px;
+    background:var(--amber);
+    cursor:pointer;
+    border:2px solid #1a1204;
+    box-shadow:0 0 6px var(--amber-glow);
+  }
+
+  .hint{
+    text-align:center;
+    color:var(--text-dim);
+    font-size:10px;
+    font-family:'JetBrains Mono',monospace;
+    padding:10px 0 2px;
+    letter-spacing:0.03em;
+  }
+  .hint kbd{
+    background:var(--case-2);
+    border:1px solid var(--rule-bright);
+    border-radius:3px;
+    padding:1px 4px;
+    color:var(--text);
+  }
+
+  @media (max-width:480px){
+    .word-line{font-size:30px;}
+    .stage{height:160px;}
+    .wpm-block label{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="rivet tl"></div><div class="rivet tr"></div>
+  <div class="rivet bl"></div><div class="rivet br"></div>
+
+  <div class="nameplate">
+    <div class="brand">
+      <div class="led-dot" id="powerLed"></div>
+      <h1>RETICLE</h1>
+    </div>
+    <small>FIXED-POINT READER</small>
+  </div>
+
+  <div class="upload-zone" id="uploadZone">
+    <div class="slot">INSERT DOCUMENT</div>
+    <p class="main">Drop a PDF here, or click to choose one</p>
+    <p class="sub">Text is extracted in your browser — nothing is uploaded anywhere</p>
+  </div>
+  <input type="file" id="fileInput" accept="application/pdf">
+  <div class="status" id="status"></div>
+
+  <div class="reader" id="reader">
+    <div class="filebar">
+      <span class="fname" id="fname">document.pdf</span>
+      <button id="changeFileBtn">EJECT / CHOOSE ANOTHER</button>
+    </div>
+
+    <div class="screen-frame">
+      <div class="stage">
+        <div class="reticle-tick center"></div>
+        <div class="reticle-tick top"></div>
+        <div class="reticle-tick bottom"></div>
+        <div class="word-line" id="wordLine">
+          <span class="pre" id="wordPre"></span><span class="pivot" id="wordPivot"></span><span class="post" id="wordPost"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-track" id="progressTrack">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-meta">
+        <span id="wordCounter">0 / 0</span>
+        <span id="timeRemaining">0:00 remaining</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="btn" id="restartBtn" title="Restart">⟲</div>
+      <div class="btn" id="backBtn" title="Back 10 words">◀</div>
+      <div class="btn play" id="playBtn" title="Play / Pause (Space)">▶</div>
+      <div class="btn" id="fwdBtn" title="Forward 10 words">▶▶</div>
+      <div class="wpm-block">
+        <label>WPM</label>
+        <input type="range" id="wpmSlider" min="100" max="900" step="10" value="300">
+        <span class="wpm-value" id="wpmValue">300</span>
+      </div>
+    </div>
+    <div class="hint"><kbd>space</kbd> play/pause &nbsp; <kbd>←</kbd><kbd>→</kbd> skip word &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+const reader = document.getElementById('reader');
+const fnameEl = document.getElementById('fname');
+const changeFileBtn = document.getElementById('changeFileBtn');
+const powerLed = document.getElementById('powerLed');
+
+const wordPre = document.getElementById('wordPre');
+const wordPivot = document.getElementById('wordPivot');
+const wordPost = document.getElementById('wordPost');
+
+const progressTrack = document.getElementById('progressTrack');
+const progressFill = document.getElementById('progressFill');
+const wordCounter = document.getElementById('wordCounter');
+const timeRemaining = document.getElementById('timeRemaining');
+
+const playBtn = document.getElementById('playBtn');
+const restartBtn = document.getElementById('restartBtn');
+const backBtn = document.getElementById('backBtn');
+const fwdBtn = document.getElementById('fwdBtn');
+const wpmSlider = document.getElementById('wpmSlider');
+const wpmValue = document.getElementById('wpmValue');
+
+let words = [];
+let idx = 0;
+let playing = false;
+let timer = null;
+let wpm = 300;
+
+uploadZone.addEventListener('click', () => fileInput.click());
+changeFileBtn.addEventListener('click', () => {
+  pause();
+  reader.classList.remove('active');
+  uploadZone.style.display = 'block';
+  fileInput.value = '';
+  statusEl.textContent = '';
+});
+
+['dragover','dragenter'].forEach(evt =>
+  uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.add('dragover'); })
+);
+['dragleave','drop'].forEach(evt =>
+  uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.remove('dragover'); })
+);
+uploadZone.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) handleFile(file);
+});
+
+async function handleFile(file){
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    setStatus("That file isn't a PDF. Try a different one.", true);
+    return;
+  }
+  setStatus('Reading ' + file.name + ' …');
+  try {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    let fullText = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+      setStatus(`Extracting text — page ${p} / ${pdf.numPages}`);
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(it => it.str).join(' ');
+      fullText += pageText + ' ';
+    }
+    const tokens = fullText.split(/\s+/).filter(w => w.length > 0);
+    if (tokens.length === 0) {
+      setStatus('No extractable text found in that PDF (it may be scanned images).', true);
+      return;
+    }
+    words = tokens;
+    idx = 0;
+    fnameEl.textContent = file.name;
+    uploadZone.style.display = 'none';
+    reader.classList.add('active');
+    setStatus('');
+    renderWord();
+    updateProgress();
+  } catch (err) {
+    console.error(err);
+    setStatus('Could not read that PDF. It may be corrupted or password-protected.', true);
+  }
+}
+
+function setStatus(msg, isError){
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (isError ? ' error' : '');
+}
+
+function pivotIndex(word){
+  const len = word.length;
+  if (len <= 1) return 0;
+  if (len <= 5) return 1;
+  if (len <= 9) return 2;
+  if (len <= 13) return 3;
+  return 4;
+}
+
+function renderWord(){
+  if (words.length === 0) return;
+  const w = words[idx];
+  const p = Math.min(pivotIndex(w), w.length - 1);
+  wordPre.textContent = w.slice(0, p);
+  wordPivot.textContent = w.slice(p, p + 1);
+  wordPost.textContent = w.slice(p + 1);
+}
+
+function delayForWord(w){
+  const base = 60000 / wpm;
+  let mult = 1;
+  if (/[.!?]$/.test(w)) mult = 2.2;
+  else if (/[,;:]$/.test(w)) mult = 1.6;
+  if (w.length >= 10) mult += 0.3;
+  return base * mult;
+}
+
+function play(){
+  if (idx >= words.length) idx = 0;
+  playing = true;
+  playBtn.textContent = '❚❚';
+  powerLed.classList.add('on');
+  step();
+}
+function step(){
+  if (!playing) return;
+  if (idx >= words.length) { pause(); idx = words.length - 1; renderWord(); updateProgress(); return; }
+  renderWord();
+  updateProgress();
+  const w = words[idx];
+  timer = setTimeout(() => {
+    idx++;
+    if (idx >= words.length) { pause(); idx = words.length -1; renderWord(); updateProgress(); return; }
+    step();
+  }, delayForWord(w));
+}
+function pause(){
+  playing = false;
+  playBtn.textContent = '▶';
+  powerLed.classList.remove('on');
+  clearTimeout(timer);
+}
+function togglePlay(){ playing ? pause() : play(); }
+
+restartBtn.addEventListener('click', () => {
+  pause(); idx = 0; renderWord(); updateProgress();
+});
+backBtn.addEventListener('click', () => {
+  idx = Math.max(0, idx - 10);
+  if (playing) { pause(); play(); } else { renderWord(); updateProgress(); }
+});
+fwdBtn.addEventListener('click', () => {
+  idx = Math.min(words.length - 1, idx + 10);
+  if (playing) { pause(); play(); } else { renderWord(); updateProgress(); }
+});
+playBtn.addEventListener('click', togglePlay);
+
+wpmSlider.addEventListener('input', () => {
+  wpm = parseInt(wpmSlider.value, 10);
+  wpmValue.textContent = wpm;
+  updateProgress();
+});
+
+progressTrack.addEventListener('click', (e) => {
+  const rect = progressTrack.getBoundingClientRect();
+  const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  idx = Math.floor(frac * (words.length - 1));
+  if (playing) { pause(); play(); } else { renderWord(); updateProgress(); }
+});
+
+function updateProgress(){
+  if (words.length === 0) return;
+  const frac = idx / Math.max(1, words.length - 1);
+  progressFill.style.width = (frac * 100).toFixed(2) + '%';
+  wordCounter.textContent = `${idx + 1} / ${words.length}`;
+  const remainingWords = words.length - idx;
+  const remainingSec = Math.round((remainingWords * 60) / wpm);
+  const m = Math.floor(remainingSec / 60);
+  const s = remainingSec % 60;
+  timeRemaining.textContent = `${m}:${s.toString().padStart(2,'0')} remaining`;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!reader.classList.contains('active')) return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  else if (e.code === 'ArrowRight') { pause(); idx = Math.min(words.length-1, idx+1); renderWord(); updateProgress(); }
+  else if (e.code === 'ArrowLeft') { pause(); idx = Math.max(0, idx-1); renderWord(); updateProgress(); }
+  else if (e.code === 'ArrowUp') { e.preventDefault(); wpm = Math.min(900, wpm+20); wpmSlider.value = wpm; wpmValue.textContent = wpm; updateProgress(); }
+  else if (e.code === 'ArrowDown') { e.preventDefault(); wpm = Math.max(100, wpm-20); wpmSlider.value = wpm; wpmValue.textContent = wpm; updateProgress(); }
+});
+</script>
+</body>
+</html>
